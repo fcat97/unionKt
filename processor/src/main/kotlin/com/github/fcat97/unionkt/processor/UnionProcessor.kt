@@ -41,8 +41,11 @@ internal class UnionProcessor(
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val symbols = resolver.getSymbolsWithAnnotation(UNION_ANNOTATION_NAME).toList()
-        // Matches the new-feature opt-in in UnionProcessorProvider.
-        val (resolvable, deferred) = symbols.partition { it.validate(enableNewFeatures = true) }
+        // The two-argument validate(predicate, enableNewFeatures) only exists in KSP
+        // 2.3.12+. This single-argument form is present in every 2.x release, so the
+        // processor stays binary-compatible across the whole line.
+        @Suppress("DEPRECATION")
+        val (resolvable, deferred) = symbols.partition { it.validate() }
 
         resolvable.forEach { symbol ->
             if (symbol is KSClassDeclaration) {

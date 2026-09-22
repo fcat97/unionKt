@@ -14,11 +14,29 @@ public class UnionProcessorProvider : SymbolProcessorProvider {
             codeGenerator = environment.codeGenerator,
             logger = environment.logger,
         )
-        // Opt in to KSP's upcoming language-feature handling. Safe here because the
-        // processor implements no KSVisitor: it only reads a marker interface's name,
-        // visibility and @Union arguments. Without this, KSP logs a forward-compatibility
-        // notice on every build. Requires KSP 2.3.0 or newer.
-        environment.registerProcessorForNewFeatures(processor)
+        environment.registerForNewFeaturesIfSupported(processor)
         return processor
     }
+}
+
+/**
+ * Opts in to KSP's upcoming language-feature handling when the running KSP supports it.
+ *
+ * `SymbolProcessorEnvironment.registerProcessorForNewFeatures` was only added in KSP
+ * 2.3.12. Calling it directly throws `NoSuchMethodError` on every earlier release, so the
+ * call is made reflectively and skipped when absent — the processor works identically
+ * either way, since it implements no `KSVisitor` and only reads a marker interface's
+ * name, visibility and `@Union` arguments.
+ */
+private fun SymbolProcessorEnvironment.registerForNewFeaturesIfSupported(processor: SymbolProcessor) {
+    val register = try {
+        SymbolProcessorEnvironment::class.java.getMethod("getRegisterProcessorForNewFeatures")
+    } catch (_: NoSuchMethodException) {
+        // KSP < 2.3.12. It logs an informational forward-compatibility notice instead,
+        // which is harmless and cannot be suppressed from here.
+        return
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    (register.invoke(this) as? Function1<SymbolProcessor, Unit>)?.invoke(processor)
 }

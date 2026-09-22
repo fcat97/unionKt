@@ -264,13 +264,49 @@ Pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml):
 > `<kotlin-version>-<ksp-version>`; the 2.3.x line is versioned independently and supports
 > Kotlin 2.2 and newer. You no longer have to bump KSP in lockstep with Kotlin, and KSP1 is
 > deprecated.
->
-> **KSP 2.3.0 is the minimum.** The processor calls
-> `SymbolProcessorEnvironment.registerProcessorForNewFeatures`, which opts in to KSP's
-> upcoming language-feature handling and suppresses the forward-compatibility notice KSP
-> would otherwise log. That API does not exist before 2.3.0.
+
 
 ---
+
+## Compatibility
+
+These pins are what unionKt is *built* with. Consuming projects do not have to match them.
+
+| | Requirement | Notes |
+| --- | --- | --- |
+| **Kotlin** | 2.3 or newer | `:annotations` carries Kotlin 2.4 metadata; Kotlin reads one minor version ahead, so 2.2 and older reject it. |
+| **KSP** | any 2.3.x | The processor uses no API newer than KSP 2.3.0. |
+| **AGP** | 9.x needs **KSP 2.3.4+** | Not a unionKt constraint — see below. |
+
+Verified by building a consumer project against the published artifacts for each row:
+
+| Kotlin | KSP | Result |
+| --- | --- | --- |
+| 2.3.20 | 2.3.0 | pass |
+| 2.3.20 | 2.3.2 | pass |
+| 2.3.20 | 2.3.6 | pass |
+| 2.3.20 | 2.3.12 | pass |
+| 2.4.20 | 2.3.12 | pass |
+| 2.2.20 | 2.2.20-2.0.4 | **fails** — Kotlin 2.2 cannot read the annotation jar's metadata |
+
+### Android / AGP 9 built-in Kotlin
+
+If your module uses AGP 9's built-in Kotlin (that is, it applies `com.android.library` or
+`com.android.application` *without* `org.jetbrains.kotlin.android`), adding **any** KSP
+processor on KSP below 2.3.4 fails at configuration time:
+
+```
+Using kotlin.sourceSets DSL to add Kotlin sources is not allowed with built-in Kotlin.
+Kotlin source set 'debug' contains: [.../build/generated/ksp/debug/kotlin, ...]
+```
+
+This is [KSP #2729](https://github.com/google/ksp/issues/2729) — the KSP Gradle plugin
+registered its generated directories through `kotlin.sourceSets`, which AGP 9 forbids. It
+has nothing to do with unionKt and would happen with Room, Hilt or Moshi just the same.
+
+**Fix: upgrade KSP to 2.3.4 or newer.** Do *not* reach for
+`android.disallowKotlinSourceSets=false`; it only silences the check, and Android's own
+migration guide advises against it.
 
 ## Publishing a release
 
