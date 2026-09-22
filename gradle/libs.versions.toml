@@ -1,0 +1,16 @@
+[versions]
+# KSP changed its versioning scheme at 2.3.0: it is no longer "<kotlin>-<ksp>".
+# The 2.3.x line is versioned independently and supports Kotlin 2.2 and newer,
+# so this pin does not have to be bumped in lockstep with Kotlin.
+kotlin = "2.4.20"
+ksp = "2.3.12"
+kotlinpoet = "2.4.0"
+
+[libraries]
+ksp-api = { module = "com.google.devtools.ksp:symbol-processing-api", version.ref = "ksp" }
+kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
+kotlinpoet-ksp = { module = "com.squareup:kotlinpoet-ksp", version.ref = "kotlinpoet" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

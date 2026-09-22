@@ -1,0 +1,10 @@
+# JitPack pins JDK 8 by default, which cannot run Gradle 9. Kotlin and Java both
+# target 17 in this build, so openjdk17 is the matching toolchain.
+jdk:
+  - openjdk17
+
+# `publishToMavenLocal` is all JitPack needs: it harvests the artifacts from
+# ~/.m2/repository afterwards. No signing, no Sonatype staging, no GPG.
+# --no-daemon keeps the short-lived build container from leaking a daemon.
+install:
+  - ./gradlew publishToMavenLocal --no-daemon --stacktrace

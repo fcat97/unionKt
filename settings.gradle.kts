@@ -1,0 +1,21 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+    }
+}
+
+rootProject.name = "unionKt"
+
+include(":annotations")
+include(":processor")
+
+// :sample is never published. It exists only so the generated union is compiled
+// in-tree, which is what proves `when` exhaustiveness actually holds.
+include(":sample")
