@@ -41,10 +41,8 @@ internal class UnionProcessor(
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
         val symbols = resolver.getSymbolsWithAnnotation(UNION_ANNOTATION_NAME).toList()
-        // enableNewFeatures = false: this processor only reads the marker interface's
-        // name, visibility and @Union arguments, so there is nothing to gain from
-        // validating newer language constructs (backing fields, context parameters).
-        val (resolvable, deferred) = symbols.partition { it.validate(enableNewFeatures = false) }
+        // Matches the new-feature opt-in in UnionProcessorProvider.
+        val (resolvable, deferred) = symbols.partition { it.validate(enableNewFeatures = true) }
 
         resolvable.forEach { symbol ->
             if (symbol is KSClassDeclaration) {
@@ -62,9 +60,11 @@ internal class UnionProcessor(
         val markerName = marker.simpleName.asString()
 
         if (marker.classKind != ClassKind.INTERFACE) {
+            val kind = marker.classKind.type
+            val article = if (kind.first() in "aeiou") "an" else "a"
             logger.error(
-                "@Union may only be applied to an interface, but '$markerName' is a " +
-                    "${marker.classKind.type}. The marker exists purely to name the union; " +
+                "@Union may only be applied to an interface, but '$markerName' is $article " +
+                    "$kind. The marker exists purely to name the union; " +
                     "declare it as 'interface $markerName'.",
                 marker,
             )

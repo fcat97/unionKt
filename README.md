@@ -182,13 +182,68 @@ wrapper) so each member contributes a distinct case name.
 
 ---
 
+## Tests
+
+`:processor-tests` runs the Kotlin compiler in-process with the processor attached, using
+[kotlin-compile-testing] (ZacSweers' maintained fork, built against exactly the Kotlin and
+KSP versions pinned here).
+
+```bash
+./gradlew :processor-tests:test        # or just ./gradlew build
+```
+
+This module exists because **failure cases cannot live in `:sample`**. A `logger.error`
+fails the build, so the only way to assert that a bad marker produces the *right* message
+is to compile it in-memory and read the compiler's output:
+
+```kotlin
+@Test
+fun `marker without the Spec suffix is rejected`() {
+    compileWithUnionProcessor(
+        SourceFile.kotlin(
+            "BadName.kt",
+            """
+            package test
+
+            import com.github.fcat97.unionkt.Union
+
+            @Union(Int::class)
+            interface BadName
+            """.trimIndent(),
+        ),
+    ).assertFailedWith(
+        "@Union marker 'BadName' must be named '<Union>Spec'",
+        "Rename it to e.g. 'BadNameSpec'",
+    )
+}
+```
+
+Covered:
+
+- **Every row of the error table above**, asserted on the actual message text — wrong
+  declaration kind (class and object), missing `Spec` suffix, a marker named exactly
+  `Spec`, the default package, type parameters on the marker, an empty `@Union`, two and
+  three members colliding on a simple name, two markers resolving to the same union, and
+  an unresolvable member type.
+- **Generated shape** — sealed interface, one `data class On<T>` per member, companion
+  factories, and emission into the marker's own package.
+- **Visibility mirroring** — public stays public, `internal` stays internal, `private`
+  becomes internal *and* warns.
+- **Exhaustiveness, both directions** — a complete `when` compiles; dropping a branch
+  fails with `'when' expression must be exhaustive`.
+- **Edge cases** — a generic member star-projects to `List<*>`, a nested member type uses
+  its simple name for the case, several markers in one compilation each get their own file.
+
+[kotlin-compile-testing]: https://github.com/ZacSweers/kotlin-compile-testing
+
 ## Modules
 
-| Module         | Published | Contents |
-| -------------- | --------- | -------- |
-| `:annotations` | yes       | `@Union(vararg val types: KClass<*>)`, `CLASS` target, `SOURCE` retention. Nothing else. |
-| `:processor`   | yes       | `UnionProcessor` + `UnionProcessorProvider`, registered via `META-INF/services`. |
-| `:sample`      | **no**    | Exercises the generated code in-tree. Not published, no `maven-publish`. |
+| Module            | Published | Contents |
+| ----------------- | --------- | -------- |
+| `:annotations`    | yes    | `@Union(vararg val types: KClass<*>)`, `CLASS` target, `SOURCE` retention. Nothing else. |
+| `:processor`      | yes    | `UnionProcessor` + `UnionProcessorProvider`, registered via `META-INF/services`. |
+| `:sample`         | **no** | Exercises the generated code in-tree. Not published, no `maven-publish`. |
+| `:processor-tests`| **no** | The processor's test suite, run through kotlin-compile-testing. |
 
 `@Union` has `SOURCE` retention: it is a compile-time instruction and leaves nothing in
 your class files.
@@ -209,6 +264,11 @@ Pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.toml):
 > `<kotlin-version>-<ksp-version>`; the 2.3.x line is versioned independently and supports
 > Kotlin 2.2 and newer. You no longer have to bump KSP in lockstep with Kotlin, and KSP1 is
 > deprecated.
+>
+> **KSP 2.3.0 is the minimum.** The processor calls
+> `SymbolProcessorEnvironment.registerProcessorForNewFeatures`, which opts in to KSP's
+> upcoming language-feature handling and suppresses the forward-compatibility notice KSP
+> would otherwise log. That API does not exist before 2.3.0.
 
 ---
 
@@ -267,8 +327,9 @@ publishable locally:
 ## Building this repository
 
 ```bash
-./gradlew build              # compiles all modules, including the generated unions
-./gradlew publishToMavenLocal
+./gradlew build                 # compiles all modules and runs the processor test suite
+./gradlew :processor-tests:test # just the tests
+./gradlew publishToMavenLocal   # :annotations and :processor only
 ```
 
 Requires JDK 17 or newer. The Gradle wrapper is committed, so no local Gradle install is
@@ -276,4 +337,6 @@ needed.
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[MIT](LICENSE). Free to use, modify and redistribute, including commercially;
+the only condition is that the copyright notice and permission notice are kept in
+copies or substantial portions of the software.
