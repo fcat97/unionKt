@@ -1,5 +1,7 @@
 package com.github.fcat97.unionkt.processor
 
+import com.github.fcat97.unionkt.api.ExtensionEnvironment
+import com.github.fcat97.unionkt.api.UnionExtension
 import com.google.devtools.ksp.getVisibility
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.KSPLogger
@@ -32,8 +34,9 @@ import com.squareup.kotlinpoet.ksp.toTypeVariableName
  * the compilation instead.
  */
 internal class UnionProcessor(
-    codeGenerator: CodeGenerator,
+    private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
+    private val extensions: List<UnionExtension> = loadExtensions(),
 ) : SymbolProcessor {
 
     private val memberResolver = MemberResolver(logger)
@@ -52,7 +55,7 @@ internal class UnionProcessor(
 
         resolvable.forEach { symbol ->
             if (symbol is KSClassDeclaration) {
-                generateUnion(symbol)
+                generateUnion(symbol, resolver)
             } else {
                 // @Union targets CLASS, so this is unreachable in practice.
                 logger.error("@Union may only be applied to an interface declaration.", symbol)
@@ -62,7 +65,7 @@ internal class UnionProcessor(
         return deferred
     }
 
-    private fun generateUnion(marker: KSClassDeclaration) {
+    private fun generateUnion(marker: KSClassDeclaration, resolver: Resolver) {
         val markerName = marker.simpleName.asString()
 
         if (marker.classKind != ClassKind.INTERFACE) {
@@ -114,17 +117,40 @@ internal class UnionProcessor(
         // that actually produces a union.
         val visibility = unionVisibilityOf(marker, markerName) ?: return
 
-        writer.write(
-            model = UnionModel(
-                markerName = markerName,
-                unionType = ClassName(packageName, unionName),
-                visibility = visibility,
-                members = resolution.members,
-                typeParameters = typeParameters,
-                flattened = resolution.flattened,
-            ),
-            sources = resolution.sources,
+        val model = UnionModel(
+            markerName = markerName,
+            unionType = ClassName(packageName, unionName),
+            visibility = visibility,
+            members = resolution.members,
+            typeParameters = typeParameters,
+            flattened = resolution.flattened,
         )
+        val info = model.toInfo(marker, resolution.sources)
+        val environment = ExtensionEnvironment(codeGenerator, logger, resolver)
+
+        val annotations = extensions.flatMap { extension ->
+            runExtension(extension, marker, markerName) { extension.unionAnnotations(info, environment) }.orEmpty()
+        }
+        writer.write(model, resolution.sources, annotations)
+        extensions.forEach { extension ->
+            runExtension(extension, marker, markerName) { extension.generate(info, environment) }
+        }
+    }
+
+    /** Runs one extension call, turning an exception into a compile error that names it. */
+    private inline fun <T> runExtension(
+        extension: UnionExtension,
+        marker: KSClassDeclaration,
+        markerName: String,
+        call: () -> T,
+    ): T? = try {
+        call()
+    } catch (e: Exception) {
+        logger.error(
+            "unionKt extension '${extension::class.qualifiedName}' failed on '$markerName': ${e.message}",
+            marker,
+        )
+        null
     }
 
     /**

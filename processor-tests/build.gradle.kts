@@ -2,9 +2,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // NOT published. Compiles Kotlin sources in-memory with the processor attached so
 // the error paths can be asserted on, which a normal build cannot do: a failing
-// processor fails the build.
+// processor fails the build. The compilation harness lives in test fixtures so that
+// :serialization-kotlinx-tests can reuse it.
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    `java-test-fixtures`
 }
 
 kotlin {
@@ -22,9 +24,13 @@ java {
 }
 
 dependencies {
-    testImplementation(project(":annotations"))
-    testImplementation(project(":processor"))
-    testImplementation(libs.kotlin.compile.testing.ksp)
+    testFixturesApi(project(":annotations"))
+    testFixturesApi(project(":processor"))
+    testFixturesApi(libs.kotlin.compile.testing.ksp)
+    testFixturesImplementation(kotlin("test"))
+
+    testImplementation(project(":processor-api"))
+    testImplementation(libs.kotlinpoet.ksp)
     testImplementation(kotlin("test"))
 }
 

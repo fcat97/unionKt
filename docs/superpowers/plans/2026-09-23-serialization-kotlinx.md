@@ -241,6 +241,7 @@ dependencies {
     testFixturesImplementation(kotlin("test"))
 
     testImplementation(project(":processor-api"))
+    testImplementation(libs.kotlinpoet.ksp)
     testImplementation(kotlin("test"))
 }
 
@@ -451,7 +452,7 @@ class TestExtension : UnionExtension {
 
     private fun describe(union: UnionInfo): String = buildString {
         appendLine("union=${union.unionType} visibility=${union.visibility} marker=${union.marker.simpleName.asString()}")
-        appendLine("typeParameters=${union.typeParameters.map { "${it.variance?.keyword} ${it.name}" }}")
+        appendLine("typeParameters=${union.typeParameters.map { "${it.variance?.name?.lowercase()} ${it.name}" }}")
         union.members.forEach { member ->
             appendLine(
                 "member ${member.simpleName} case=${member.caseClass} type=${member.typeName} " +

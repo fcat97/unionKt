@@ -15,6 +15,7 @@ rootProject.name = "unionKt"
 
 include(":annotations")
 include(":processor")
+include(":processor-api")
 include(":processor-tests")
 
 // :sample is never published. It exists only so the generated union is compiled
