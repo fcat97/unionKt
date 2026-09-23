@@ -13,13 +13,15 @@ the Kotlin compiler** — dropping a branch is a compile error, not a runtime su
 @Union(Int::class, String::class, User::class)
 private interface ResultSpec
 
-val r: Result = Result.onInt(5)
+val r: Result = Result(5)         // picks the Int case
 
 val out = when (r) {              // remove any branch -> compile error
     is Result.OnInt    -> r.value.toString()
     is Result.OnString -> r.value
     is Result.OnUser   -> r.value.name
 }
+
+val same = r.fold(onInt = { it.toString() }, onString = { it }, onUser = { it.name })
 ```
 
 ---
@@ -133,6 +135,102 @@ must be `internal` too, or Kotlin will reject it for leaking an internal type.
 
 ---
 
+## Helpers on every union
+
+Next to the sealed interface and its companion factories, the generated file contains:
+
+```kotlin
+fun Result(value: Int): Result            // one constructor function per concrete case
+fun Result(value: String): Result
+fun Result(value: User): Result
+
+inline fun <T> Result.fold(               // exhaustive: every handler is required
+    onInt: (Int) -> T,
+    onString: (String) -> T,
+    onUser: (User) -> T,
+): T
+
+val Result.isInt: Boolean                 // one pair per case
+val Result.intOrNull: Int?
+```
+
+- Kotlin's overload resolution picks the constructor function; with related members
+  (`CharSequence` and `String`) the most specific one wins.
+- Each constructor function has its own `@JvmName` (`ResultOfInt`, …), because mapped
+  types such as `List` and `MutableList` share a JVM erasure.
+- `fold` and the accessors are extensions: an `inline` function with a body cannot be an
+  interface member.
+- Accessor names decapitalise the case Kotlin-style: `DoubleArray → doubleArrayOrNull`,
+  `URL → urlOrNull`.
+- All helpers take the union's visibility.
+- The generated file carries `@file:JvmName("ResultUnionKt")`: its top-level helpers would
+  otherwise compile to `ResultKt` and clash with a `Result.kt` of your own in the same package.
+
+## Generic unions
+
+A marker's type parameters become cases:
+
+```kotlin
+@Union interface EitherSpec<L, R>
+
+fun parseAge(text: String): Either<String, Int> =
+    text.toIntOrNull()?.let { Either.onR(it) } ?: Either.onL("not a number")
+```
+
+generates
+
+```kotlin
+sealed interface Either<out L, out R> {
+    data class OnL<out L>(val value: L) : Either<L, Nothing>
+    data class OnR<out R>(val value: R) : Either<Nothing, R>
+    companion object {
+        fun <L> onL(value: L): Either<L, Nothing> = OnL(value)
+        fun <R> onR(value: R): Either<Nothing, R> = OnR(value)
+    }
+}
+```
+
+plus `fold`, `isL` / `lOrNull` and `isR` / `rOrNull`. Every parameter is `out` and each case
+uses `Nothing` for the others, so `Either.onL("e")` is assignable to `Either<String, Int>`
+without a cast.
+
+- Concrete and generic members mix: `@Union(String::class) interface ParsedSpec<T>` is
+  `String | T`, and its concrete cases use `Nothing` for every parameter.
+- Bounds carry over: `<T : Number>` gives `Either<out T : Number>`.
+- Type-parameter cases have no constructor function — `fun <L> Either(value: L)` and
+  `fun <R> Either(value: R)` would share a JVM signature. Use the companion factories.
+- For `Either<String?, Int>`, `lOrNull` is `null` both for "not an L" and "an L holding
+  null". Use `isL` to tell them apart.
+
+## Flattening
+
+A member that is itself a `@Union` marker contributes its cases directly, like
+TypeScript's `A | B`:
+
+```kotlin
+@Union(Circle::class, Square::class) interface ShapeSpec
+@Union(Int::class, ShapeSpec::class) interface ItemSpec
+// Item = OnInt | OnCircle | OnSquare
+
+fun Shape.toItem(): Item   // generated, in Item.kt
+```
+
+- **Nested markers flatten recursively.** A conversion is generated from every flattened
+  union, including indirect ones.
+- **Identical types merge.** Two nested unions that both contain `Timeout` give one
+  `OnTimeout`. Listing a type twice directly is merged with a warning.
+- **Want a single case instead?** Reference the generated type: `@Union(Int::class,
+  Shape::class)` gives `OnInt | OnShape`.
+- **Across modules:** a public marker from a dependency flattens like a local one. This is
+  why `@Union` has `BINARY` retention.
+- A conversion takes the stricter visibility of the two unions. For a generic outer union it
+  returns `Item<Nothing, …>`, which is assignable to any `Item<A, B>`.
+- A generic marker cannot be flattened: a class literal cannot say which type arguments are
+  meant. A `private` marker can only be flattened from its own file (Kotlin's visibility
+  rules); make it `internal` instead.
+
+---
+
 ## Exhaustiveness guarantee
 
 This is the point of the library, and it is verified in-tree rather than claimed.
@@ -172,10 +270,18 @@ inferred when the input is ambiguous.
 | Name does not end in `Spec` | `@Union marker 'BadName' must be named '<Union>Spec' …` |
 | Name is exactly `Spec` | same as above (the suffix must be a *suffix*, not the whole name) |
 | Two members share a simple name | `@Union on 'ClashSpec' has 2 member types whose simple name is 'User' (…a.User, …b.User), which would generate clashing 'OnUser' cases. …` |
-| No member types | `@Union on 'EmptySpec' declares no member types. A union needs at least one.` |
+| No member types and no type parameters | `@Union on 'EmptySpec' declares no member types. A union needs at least one.` |
 | Marker in the default package | `… must live in a named package …` |
-| Marker declares type parameters | `… declares type parameters, which the generated union cannot carry. …` |
 | Two markers produce the same union name | `… would generate 'pkg.Foo', which another marker in the same package already generates. …` |
+| `in` type parameter on the marker | `@Union marker 'SinkSpec' type parameter 'T' is declared 'in', but a union case stores a T …` |
+| Type parameter bound refers to another type parameter | `@Union marker 'PairSpec' type parameter 'U' has a bound that refers to 'T'. …` |
+| Flattening a generic marker | `@Union on 'ItemSpec' cannot flatten generic union 'EitherSpec' …` |
+| Flattening cycle | `@Union on 'ASpec' has a flattening cycle: ASpec → BSpec → ASpec. …` |
+| Same simple name through flattening | the clash message above, with `… via PeopleSpec` on the flattened member |
+
+One warning: listing the same type twice directly (`@Union(Int::class, Int::class)`) merges
+the duplicates and reports `@Union on 'DupSpec' lists 'kotlin.Int' more than once; the
+duplicates are merged.`
 
 For the simple-name collision case, introduce a wrapper type (or a `typealias` plus a
 wrapper) so each member contributes a distinct case name.
@@ -222,7 +328,7 @@ Covered:
 
 - **Every row of the error table above**, asserted on the actual message text — wrong
   declaration kind (class and object), missing `Spec` suffix, a marker named exactly
-  `Spec`, the default package, type parameters on the marker, an empty `@Union`, two and
+  `Spec`, the default package, an empty `@Union`, two and
   three members colliding on a simple name, two markers resolving to the same union, and
   an unresolvable member type.
 - **Generated shape** — sealed interface, one `data class On<T>` per member, companion
@@ -233,6 +339,14 @@ Covered:
   fails with `'when' expression must be exhaustive`.
 - **Edge cases** — a generic member star-projects to `List<*>`, a nested member type uses
   its simple name for the case, several markers in one compilation each get their own file.
+- **Helpers** — constructor functions pick the right case (including the most specific
+  overload and `List`/`MutableList`), `fold` and the accessors are run, not just compiled,
+  and follow the union's visibility.
+- **Generic unions** — covariant cases assignable without casts, bounds carried over and
+  enforced, mixed concrete + generic unions, and the `in` / sibling-bound errors.
+- **Flattening** — single-level, transitive, overlapping, direct duplicates, clash via
+  flattening, cycles, generic markers, nesting via the generated type, conversion
+  visibility, and a **two-module** compilation that flattens a marker from a dependency.
 
 [kotlin-compile-testing]: https://github.com/ZacSweers/kotlin-compile-testing
 
@@ -240,13 +354,13 @@ Covered:
 
 | Module            | Published | Contents |
 | ----------------- | --------- | -------- |
-| `:annotations`    | yes    | `@Union(vararg val types: KClass<*>)`, `CLASS` target, `SOURCE` retention. Nothing else. |
+| `:annotations`    | yes    | `@Union(vararg val types: KClass<*>)`, `CLASS` target, `BINARY` retention. Nothing else. |
 | `:processor`      | yes    | `UnionProcessor` + `UnionProcessorProvider`, registered via `META-INF/services`. |
 | `:sample`         | **no** | Exercises the generated code in-tree. Not published, no `maven-publish`. |
 | `:processor-tests`| **no** | The processor's test suite, run through kotlin-compile-testing. |
 
-`@Union` has `SOURCE` retention: it is a compile-time instruction and leaves nothing in
-your class files.
+`@Union` has `BINARY` retention: it is kept in class files, so a downstream module can flatten
+a marker from a dependency, but it is not visible to runtime reflection.
 
 ### Versions
 
