@@ -1,11 +1,13 @@
 # unionKt
 
-[![](https://jitpack.io/v/fcat97/unionKt.svg)](https://jitpack.io/#fcat97/unionKt)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.fcat97.unionkt/processor)](https://central.sonatype.com/artifact/io.github.fcat97.unionkt/processor)
 
 Kotlin doesn't have union types like TypeScript's `Int | String`. unionKt gives you one.
 
 Tell it which types a value can be, and it writes a type-safe union for you. Kotlin then
 makes sure you handle every case: forget one and your code won't compile.
+
+Works everywhere Kotlin does: Android, JVM, iOS, macOS, web (JS and Wasm), Linux and Windows.
 
 ```kotlin
 @Union(Int::class, String::class, User::class)
@@ -22,18 +24,7 @@ val text = when (result) {
 
 ## Setup
 
-Add JitPack to `settings.gradle.kts`:
-
-```kotlin
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://jitpack.io")
-    }
-}
-```
-
-Then in your module's `build.gradle.kts`:
+unionKt is on Maven Central. In your module's `build.gradle.kts`:
 
 ```kotlin
 plugins {
@@ -41,12 +32,34 @@ plugins {
 }
 
 dependencies {
-    implementation("com.github.fcat97.unionKt:annotations:0.4.0")
-    ksp("com.github.fcat97.unionKt:processor:0.4.0")
+    implementation("io.github.fcat97.unionkt:annotations:0.5.0")
+    ksp("io.github.fcat97.unionkt:processor:0.5.0")
 }
 ```
 
-You need Kotlin 2.3 or newer and any KSP 2.3.x. On Android with AGP 9, use KSP 2.3.4 or newer.
+Tested with Kotlin 2.4.20 and KSP 2.3.12. On Android with AGP 9, use KSP 2.3.4 or newer.
+
+### Kotlin Multiplatform
+
+Add the annotations to `commonMain`, and the processor to each target's KSP configuration:
+
+```kotlin
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation("io.github.fcat97.unionkt:annotations:0.5.0")
+        }
+    }
+}
+
+dependencies {
+    listOf("kspJvm", "kspJs", "kspIosArm64", "kspIosSimulatorArm64").forEach {
+        add(it, "io.github.fcat97.unionkt:processor:0.5.0")
+    }
+}
+```
+
+Use the names that match your targets (`kspAndroid`, `kspWasmJs`, `kspLinuxX64`, …).
 
 ## Making a union
 
@@ -158,7 +171,7 @@ plugins {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-    ksp("com.github.fcat97.unionKt:serialization-kotlinx:0.4.0")
+    ksp("io.github.fcat97.unionkt:serialization-kotlinx:0.5.0")
 }
 ```
 
@@ -176,7 +189,8 @@ When reading JSON, unionKt tries your types in the order you listed them and use
 one that fits. So if two of your classes look alike, list the more specific one first.
 
 Every type in a serializable union must be `@Serializable` (basic Kotlin types and enums
-already are). You need kotlinx-serialization-json 1.6.3 or newer.
+already are). You need kotlinx-serialization-json 1.6.3 or newer. In a multiplatform project,
+add `serialization-kotlinx` to the same KSP configurations as the processor.
 
 ## License
 
