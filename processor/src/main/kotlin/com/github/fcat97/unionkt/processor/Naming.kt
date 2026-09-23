@@ -1,9 +1,11 @@
 package com.github.fcat97.unionkt.processor
 
+import com.github.fcat97.unionkt.Derive
 import com.github.fcat97.unionkt.Union
 
 internal val UNION_ANNOTATION_NAME: String = requireNotNull(Union::class.qualifiedName)
 internal val UNION_ANNOTATION_SIMPLE_NAME: String = requireNotNull(Union::class.simpleName)
+internal val DERIVE_ANNOTATION_NAME: String = requireNotNull(Derive::class.qualifiedName)
 
 internal const val TYPES_ARGUMENT = "types"
 internal const val SPEC_SUFFIX = "Spec"
@@ -36,8 +38,8 @@ internal fun accessorStem(simpleName: String): String {
     return simpleName.take(lowered).lowercase() + simpleName.drop(lowered)
 }
 
-/** The first of `T`, `T1`, `T2`, … that is not in [taken]. */
-internal fun freeTypeVariableName(taken: Set<String>): String =
+/** The first of `base`, `base1`, `base2`, … that is not in [taken]. */
+internal fun freeTypeVariableName(taken: Set<String>, base: String = "T"): String =
     generateSequence(0) { it + 1 }
-        .map { if (it == 0) "T" else "T$it" }
+        .map { if (it == 0) base else "$base$it" }
         .first { it !in taken }

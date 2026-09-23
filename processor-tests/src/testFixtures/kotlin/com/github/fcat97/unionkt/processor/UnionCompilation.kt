@@ -12,7 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Runs the Kotlin compiler in-process with [UnionProcessorProvider] attached.
+ * Runs the Kotlin compiler in-process with the unionKt processors attached.
  *
  * The `:sample` module can only prove the *happy* path: a processor that calls
  * `logger.error` fails the build, so failure cases cannot live in a normal source
@@ -40,6 +40,7 @@ public fun compileWithUnionProcessor(
         useKsp2()
         configureKsp {
             symbolProcessorProviders += UnionProcessorProvider()
+            symbolProcessorProviders += DeriveProcessorProvider()
         }
     }
 
