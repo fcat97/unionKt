@@ -7,7 +7,7 @@ Kotlin doesn't have union types like TypeScript's `Int | String`. unionKt gives 
 Tell it which types a value can be, and it writes a type-safe union for you. Kotlin then
 makes sure you handle every case: forget one and your code won't compile.
 
-Works everywhere Kotlin does: Android, JVM, iOS, macOS, web (JS and Wasm), Linux and Windows.
+Works everywhere Kotlin does: 🤖 Android · ☕ JVM · 🍎 iOS · 💻 macOS · 🌐 Web · 🐧 Linux · 🪟 Windows
 
 ```kotlin
 @Union(Int::class, String::class, User::class)
@@ -39,9 +39,42 @@ dependencies {
 
 Tested with Kotlin 2.4.20 and KSP 2.3.12. On Android with AGP 9, use KSP 2.3.4 or newer.
 
-### Kotlin Multiplatform
+## Kotlin Multiplatform
 
-Add the annotations to `commonMain`, and the processor to each target's KSP configuration:
+Sharing code between Android, iOS, desktop and web? unionKt fits right in. Write your unions
+once in `commonMain` and use the same types on every platform. No `expect`/`actual`, no copies
+per platform.
+
+```kotlin
+// commonMain
+@Union(User::class, NetworkError::class, Loading::class)
+interface ScreenStateSpec
+
+fun describe(state: ScreenState): String = state.fold(
+    onUser = { "Hello ${it.name}" },
+    onNetworkError = { "Something went wrong" },
+    onLoading = { "Loading…" },
+)
+```
+
+Android, iOS and web now all get the same `ScreenState`, with the same `fold`, the same
+compile-time checks and the same JSON support. Everything in this README works in common
+code: unions, generics, combining unions, `@Derive` and kotlinx.serialization.
+
+**Supported platforms:**
+
+| | |
+| --- | --- |
+| 🤖 Android | ☕ JVM (desktop and server) |
+| 🍎 iOS | 💻 macOS |
+| ⌚ watchOS | 📺 tvOS |
+| 🌐 JavaScript | 🧩 WebAssembly |
+| 🐧 Linux | 🪟 Windows |
+| 📱 Android Native | |
+
+### Setup
+
+Add the annotations to `commonMain`, and the processor for each of your targets:
 
 ```kotlin
 kotlin {
@@ -53,13 +86,13 @@ kotlin {
 }
 
 dependencies {
-    listOf("kspJvm", "kspJs", "kspIosArm64", "kspIosSimulatorArm64").forEach {
+    listOf("kspAndroid", "kspIosArm64", "kspIosSimulatorArm64", "kspJs").forEach {
         add(it, "io.github.fcat97.unionkt:processor:0.5.0")
     }
 }
 ```
 
-Use the names that match your targets (`kspAndroid`, `kspWasmJs`, `kspLinuxX64`, …).
+Pick the names that match your targets, such as `kspJvm`, `kspWasmJs` or `kspLinuxX64`.
 
 ## Making a union
 
