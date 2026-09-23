@@ -184,4 +184,37 @@ class UnionGenericsTest {
             ),
         ).assertFailedWith("2 member types whose simple name is 'String'")
     }
+
+    @Test
+    fun `a @Union whose types argument KSP omits is treated as having no types`() {
+        // Declaring the annotation in source (as the spike's multiplatform stand-in did) makes
+        // KSP omit the defaulted vararg instead of passing an empty list.
+        compileWithUnionProcessor(
+            SourceFile.kotlin(
+                "Union.kt",
+                """
+                package com.github.fcat97.unionkt
+
+                import kotlin.reflect.KClass
+
+                @Target(AnnotationTarget.CLASS)
+                @Retention(AnnotationRetention.BINARY)
+                annotation class Union(vararg val types: KClass<*>)
+                """.trimIndent(),
+            ),
+            SourceFile.kotlin(
+                "Either.kt",
+                """
+                package test
+
+                import com.github.fcat97.unionkt.Union
+
+                @Union
+                interface EitherSpec<L, R>
+
+                fun left(): Either<String, Int> = Either.onL("e")
+                """.trimIndent(),
+            ),
+        ).assertSucceeded()
+    }
 }

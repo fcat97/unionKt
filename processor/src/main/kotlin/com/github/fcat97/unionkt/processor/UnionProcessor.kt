@@ -37,10 +37,11 @@ internal class UnionProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
     private val extensions: List<UnionExtension> = loadExtensions(),
+    emitJvmNames: Boolean = true,
 ) : SymbolProcessor {
 
     private val memberResolver = MemberResolver(logger)
-    private val writer = UnionWriter(codeGenerator)
+    private val writer = UnionWriter(codeGenerator, emitJvmNames)
 
     /** Guards against two markers in one package resolving to the same union. */
     private val generated = mutableSetOf<String>()

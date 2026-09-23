@@ -1,35 +1,60 @@
+import com.vanniktech.maven.publish.MavenPublishBaseExtension
+
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.kotlin.multiplatform) apply false
     alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.maven.publish) apply false
 }
 
-// ---------------------------------------------------------------------------
-// Coordinates
-// ---------------------------------------------------------------------------
-// JitPack does not pass -Pgroup/-Pversion. It exports environment variables into
-// the build container instead:
-//
-//     GROUP    = com.github.<user>      (e.g. com.github.fcat97)
-//     ARTIFACT = <repository name>      (e.g. unionKt)
-//     VERSION  = <git tag being built>  (e.g. 0.1.0)
-//
-// For a MULTI-MODULE repository the published group is "<user>.<repo>" and the
-// artifactId is the module name, which is how consumers end up writing
-//
-//     com.github.fcat97.unionKt:annotations:<tag>
-//
-// so GROUP and ARTIFACT are joined here. Outside JitPack (local development, CI)
-// the fallbacks below keep the build publishable to mavenLocal.
-val jitpackGroup: String? = System.getenv("GROUP")?.takeIf { it.isNotBlank() }
-val jitpackArtifact: String? = System.getenv("ARTIFACT")?.takeIf { it.isNotBlank() }
-val jitpackVersion: String? = System.getenv("VERSION")?.takeIf { it.isNotBlank() }
-
+// Published as io.github.fcat97.unionkt:<module>:<version>. The release workflow passes
+// -PVERSION_NAME=<tag>; local builds are snapshots.
 allprojects {
-    group = when {
-        jitpackGroup != null && jitpackArtifact != null -> "$jitpackGroup.$jitpackArtifact"
-        jitpackGroup != null -> jitpackGroup
-        else -> "com.github.fcat97.unionKt"
+    group = "io.github.fcat97.unionkt"
+    version = providers.gradleProperty("VERSION_NAME").getOrElse("0.5.0-SNAPSHOT")
+}
+
+// Shared Maven Central setup for every module that applies com.vanniktech.maven.publish.
+// Each module sets its own `description` and platform (JVM or multiplatform).
+subprojects {
+    plugins.withId("com.vanniktech.maven.publish") {
+        extensions.configure<MavenPublishBaseExtension> {
+            coordinates(project.group.toString(), project.name, project.version.toString())
+
+            // Uploaded and validated, then released by hand in the Central Portal.
+            publishToMavenCentral()
+
+            // Central requires signatures. Local publishing (no key) stays unsigned.
+            if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+                signAllPublications()
+            }
+
+            pom {
+                name.set("unionKt ${project.name}")
+                description.set(provider { project.description })
+                inceptionYear.set("2026")
+                url.set("https://github.com/fcat97/unionKt")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                        distribution.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("fcat97")
+                        name.set("Shahriar Zaman")
+                        url.set("https://github.com/fcat97")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/fcat97/unionKt")
+                    connection.set("scm:git:https://github.com/fcat97/unionKt.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/fcat97/unionKt.git")
+                }
+            }
+        }
     }
-    version = jitpackVersion ?: "0.1.0-SNAPSHOT"
 }

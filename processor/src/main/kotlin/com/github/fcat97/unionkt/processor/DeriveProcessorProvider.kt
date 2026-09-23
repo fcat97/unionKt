@@ -10,6 +10,7 @@ public class DeriveProcessorProvider : SymbolProcessorProvider {
         val processor = DeriveProcessor(
             codeGenerator = environment.codeGenerator,
             logger = environment.logger,
+            emitJvmNames = environment.targetsJvm(),
         )
         environment.registerForNewFeaturesIfSupported(processor)
         return processor

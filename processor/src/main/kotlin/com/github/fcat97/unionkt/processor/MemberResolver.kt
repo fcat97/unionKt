@@ -249,7 +249,9 @@ internal fun KSClassDeclaration.unionAnnotation(): KSAnnotation? = annotations.f
 
 /** Reads the `vararg types: KClass<*>` argument, which KSP models as a list of [KSType]. */
 internal fun KSAnnotation.memberTypes(): List<KSType>? {
-    val argument = arguments.firstOrNull { it.name?.asString() == TYPES_ARGUMENT } ?: return null
+    // KSP omits a defaulted vararg in some compilations (seen in multiplatform builds): no
+    // argument means no types, not an unreadable annotation.
+    val argument = arguments.firstOrNull { it.name?.asString() == TYPES_ARGUMENT } ?: return emptyList()
     return when (val value = argument.value) {
         is KSType -> listOf(value)
         is List<*> -> value.filterIsInstance<KSType>().takeIf { it.size == value.size }

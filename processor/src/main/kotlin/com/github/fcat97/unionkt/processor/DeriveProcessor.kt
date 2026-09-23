@@ -32,9 +32,10 @@ import com.squareup.kotlinpoet.ksp.toTypeVariableName
 internal class DeriveProcessor(
     codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
+    emitJvmNames: Boolean = true,
 ) : SymbolProcessor {
 
-    private val writer = DeriveWriter(codeGenerator)
+    private val writer = DeriveWriter(codeGenerator, emitJvmNames)
 
     /** Guards against two targets producing the same file. */
     private val generated = mutableSetOf<String>()

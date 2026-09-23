@@ -20,6 +20,9 @@ include(":processor-tests")
 include(":serialization-kotlinx")
 include(":serialization-kotlinx-tests")
 
+// Not published: exercises every feature from common code on each Kotlin platform.
+include(":kmp-tests")
+
 // :sample is never published. It exists only so the generated union is compiled
 // in-tree, which is what proves `when` exhaustiveness actually holds.
 include(":sample")
