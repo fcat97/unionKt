@@ -14,6 +14,8 @@ internal data class UnionMember(
     val typeName: TypeName,
     /** Non-null when the case is one of the union's own type parameters. */
     val typeParameter: UnionTypeParameter? = null,
+    /** The chain of nested markers this member was flattened in through, e.g. `ShapeSpec → PolygonSpec`. */
+    val via: String? = null,
 )
 
 /** A type parameter of the marker, and therefore of the union. Always emitted as `out`. */
@@ -23,6 +25,14 @@ internal data class UnionTypeParameter(
     val bounds: List<TypeName>,
 )
 
+/** A union whose cases were inlined into another; each one gets a `toX()` conversion. */
+internal data class FlattenedUnion(
+    val unionType: ClassName,
+    val visibility: KModifier,
+    /** The flattened union's own cases, in its order. */
+    val members: List<UnionMember>,
+)
+
 /** Everything [UnionWriter] needs to emit one union. */
 internal data class UnionModel(
     val markerName: String,
@@ -30,4 +40,5 @@ internal data class UnionModel(
     val visibility: KModifier,
     val members: List<UnionMember>,
     val typeParameters: List<UnionTypeParameter> = emptyList(),
+    val flattened: List<FlattenedUnion> = emptyList(),
 )

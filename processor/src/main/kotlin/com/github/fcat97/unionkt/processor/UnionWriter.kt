@@ -5,12 +5,12 @@ import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.symbol.KSFile
 import com.squareup.kotlinpoet.AnnotationSpec
 import com.squareup.kotlinpoet.BOOLEAN
-import com.squareup.kotlinpoet.CodeBlock
-import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.CodeBlock
 import com.squareup.kotlinpoet.FileSpec
 import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.NOTHING
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
@@ -44,6 +44,7 @@ internal class UnionWriter(private val codeGenerator: CodeGenerator) {
         constructorFunctions(model).forEach(file::addFunction)
         file.addFunction(fold(model))
         model.members.forEach { member -> accessors(model, member).forEach(file::addProperty) }
+        model.flattened.forEach { nested -> file.addFunction(conversion(model, nested)) }
 
         file.build().writeTo(
             codeGenerator = codeGenerator,
@@ -172,6 +173,39 @@ internal class UnionWriter(private val codeGenerator: CodeGenerator) {
             .build()
 
         return listOf(isCase, orNull)
+    }
+
+    /**
+     * `fun Shape.toItem(): Item`, mapping each of the flattened union's cases onto the
+     * same-typed case here. Visibility is the stricter of the two unions; a generic
+     * union's conversion returns `Item<Nothing, …>`, which covariance makes assignable
+     * to any parameterisation.
+     */
+    private fun conversion(model: UnionModel, nested: FlattenedUnion): FunSpec {
+        val body = CodeBlock.builder().beginControlFlow("return when (this)")
+        nested.members.forEach { member ->
+            body.addStatement(
+                "is %T -> %T(%N)",
+                nested.unionType.nestedClass(member.caseName),
+                model.caseClassName(member),
+                VALUE_NAME,
+            )
+        }
+        body.endControlFlow()
+
+        val visibility =
+            if (model.visibility == KModifier.INTERNAL || nested.visibility == KModifier.INTERNAL) {
+                KModifier.INTERNAL
+            } else {
+                KModifier.PUBLIC
+            }
+
+        return FunSpec.builder("to" + model.unionType.simpleName)
+            .addModifiers(visibility)
+            .receiver(nested.unionType)
+            .returns(model.nothingType())
+            .addCode(body.build())
+            .build()
     }
 }
 

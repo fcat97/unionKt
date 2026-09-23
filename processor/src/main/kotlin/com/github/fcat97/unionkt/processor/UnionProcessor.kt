@@ -108,7 +108,7 @@ internal class UnionProcessor(
         }
 
         val typeParameters = resolveTypeParameters(marker, markerName) ?: return
-        val members = memberResolver.resolve(marker, markerName, typeParameters) ?: return
+        val resolution = memberResolver.resolve(marker, markerName, typeParameters) ?: return
 
         // Computed last so the private -> internal warning is only emitted for a marker
         // that actually produces a union.
@@ -119,10 +119,11 @@ internal class UnionProcessor(
                 markerName = markerName,
                 unionType = ClassName(packageName, unionName),
                 visibility = visibility,
-                members = members,
+                members = resolution.members,
                 typeParameters = typeParameters,
+                flattened = resolution.flattened,
             ),
-            sources = listOfNotNull(marker.containingFile),
+            sources = resolution.sources,
         )
     }
 
