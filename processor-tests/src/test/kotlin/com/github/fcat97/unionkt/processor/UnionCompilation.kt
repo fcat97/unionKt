@@ -17,12 +17,17 @@ import kotlin.test.assertTrue
  * `logger.error` fails the build, so failure cases cannot live in a normal source
  * set. Compiling from strings here is what makes the error paths assertable.
  */
-internal fun compileWithUnionProcessor(vararg sources: SourceFile): UnionCompilationResult {
+internal fun compileWithUnionProcessor(
+    vararg sources: SourceFile,
+    classpath: List<File> = emptyList(),
+): UnionCompilationResult {
     val compilation = KotlinCompilation().apply {
         this.sources = sources.toList()
         // Puts the :annotations module (and kotlin-stdlib) on the compiled sources'
         // classpath, so `import com.github.fcat97.unionkt.Union` resolves.
         inheritClassPath = true
+        // Extra dependencies, e.g. a "library" compiled by an earlier call.
+        classpaths = classpath
         useKsp2()
         configureKsp {
             symbolProcessorProviders += UnionProcessorProvider()
@@ -39,6 +44,9 @@ internal class UnionCompilationResult(
 ) {
     val exitCode: KotlinCompilation.ExitCode get() = result.exitCode
     val messages: String get() = result.messages
+
+    /** The compiled classes, to pass as `classpath` to a later compilation. */
+    val outputDirectory: File get() = result.outputDirectory
 
     private val generatedFiles: List<File>
         get() = kspSourcesDir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()

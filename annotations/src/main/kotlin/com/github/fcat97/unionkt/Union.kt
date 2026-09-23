@@ -42,5 +42,7 @@ import kotlin.reflect.KClass
  * @param types the member types of the union, in declaration order.
  */
 @Target(AnnotationTarget.CLASS)
-@Retention(AnnotationRetention.SOURCE)
+// BINARY, not SOURCE: the annotation must survive into class files so a marker from a
+// dependency can be flattened. It is still invisible to runtime reflection.
+@Retention(AnnotationRetention.BINARY)
 public annotation class Union(vararg val types: KClass<*>)
