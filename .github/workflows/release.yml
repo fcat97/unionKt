@@ -24,7 +24,7 @@ jobs:
           path: ~/.konan
           key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
       - name: Publish
-        run: ./gradlew publishToMavenCentral -PVERSION_NAME=${{ github.ref_name }} --no-configuration-cache
+        run: ./gradlew publishToMavenCentral -PreleaseVersion=${{ github.ref_name }} --no-configuration-cache
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

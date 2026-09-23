@@ -72,7 +72,7 @@ javadoc jars, the POM fields Central requires, and upload to the Central Portal:
 - `publishToMavenCentral()` **without automatic release** (§3.2);
 - `signAllPublications()`.
 
-The version comes from the Gradle property `VERSION_NAME`, defaulting to `0.5.0-SNAPSHOT`. The
+The version comes from the Gradle property `releaseVersion`, defaulting to `0.5.0-SNAPSHOT` (not `VERSION_NAME`, which the publish plugin reads itself and would set a second time). The
 JitPack environment handling in the root build and `jitpack.yml` are removed.
 
 ## 2. Generated code on every platform
@@ -133,7 +133,7 @@ An unpublished Kotlin Multiplatform module consuming `project(":processor")` and
 ### 3.2 `release.yml` (push of a tag matching `[0-9]+.[0-9]+.[0-9]+`)
 
 One **macos-latest** job builds every target and runs
-`./gradlew publishToMavenCentral -PVERSION_NAME=<tag>`. A single job keeps each version one
+`./gradlew publishToMavenCentral -PreleaseVersion=<tag>`. A single job keeps each version one
 Central deployment.
 
 The deployment is uploaded and validated, then **released manually** with "Publish" in the Central

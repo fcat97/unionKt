@@ -9,10 +9,11 @@ plugins {
 }
 
 // Published as io.github.fcat97.unionkt:<module>:<version>. The release workflow passes
-// -PVERSION_NAME=<tag>; local builds are snapshots.
+// -PreleaseVersion=<tag>; local builds are snapshots. (Not VERSION_NAME: the publish plugin
+// reads that name itself and would try to set the version a second time.)
 allprojects {
     group = "io.github.fcat97.unionkt"
-    version = providers.gradleProperty("VERSION_NAME").getOrElse("0.5.0-SNAPSHOT")
+    version = providers.gradleProperty("releaseVersion").getOrElse("0.5.0-SNAPSHOT")
 }
 
 // Shared Maven Central setup for every module that applies com.vanniktech.maven.publish.
