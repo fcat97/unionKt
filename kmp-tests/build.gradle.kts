@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // NOT published. Compiles and tests the generated code on JVM, JS, Linux and Windows
@@ -15,6 +16,10 @@ kotlin {
         }
     }
     js {
+        nodejs()
+    }
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
         nodejs()
     }
     linuxX64()
@@ -35,7 +40,7 @@ kotlin {
 
 // KSP per target, as the README documents for multiplatform users.
 dependencies {
-    listOf("kspJvm", "kspJs", "kspLinuxX64", "kspMingwX64", "kspIosSimulatorArm64", "kspMacosArm64").forEach {
+    listOf("kspJvm", "kspJs", "kspWasmJs", "kspLinuxX64", "kspMingwX64", "kspIosSimulatorArm64", "kspMacosArm64").forEach {
         add(it, project(":processor"))
         add(it, project(":serialization-kotlinx"))
     }
