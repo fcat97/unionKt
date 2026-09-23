@@ -1,5 +1,6 @@
 package com.github.fcat97.unionkt.processor
 
+import com.google.devtools.ksp.processing.JvmPlatformInfo
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.processing.SymbolProcessorProvider
@@ -13,6 +14,7 @@ public class UnionProcessorProvider : SymbolProcessorProvider {
         val processor = UnionProcessor(
             codeGenerator = environment.codeGenerator,
             logger = environment.logger,
+            emitJvmNames = environment.targetsJvm(),
         )
         environment.registerForNewFeaturesIfSupported(processor)
         return processor
@@ -40,3 +42,9 @@ internal fun SymbolProcessorEnvironment.registerForNewFeaturesIfSupported(proces
     @Suppress("UNCHECKED_CAST")
     (register.invoke(this) as? Function1<SymbolProcessor, Unit>)?.invoke(processor)
 }
+
+/**
+ * Whether the code being generated is compiled for the JVM (alone, or as part of common code
+ * shared with a JVM target). `@JvmName` exists only there.
+ */
+internal fun SymbolProcessorEnvironment.targetsJvm(): Boolean = platforms.any { it is JvmPlatformInfo }

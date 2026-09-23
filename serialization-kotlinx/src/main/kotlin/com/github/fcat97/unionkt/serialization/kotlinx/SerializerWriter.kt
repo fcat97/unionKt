@@ -129,7 +129,7 @@ internal class SerializerWriter(private val codeGenerator: CodeGenerator) {
     private fun deserialize(union: UnionInfo, unionType: TypeName, serializerType: ClassName): FunSpec {
         val body = CodeBlock.builder()
             .addStatement(
-                "val input = (decoder as? %T ?: throw %T(%S + decoder::class.qualifiedName + %S))",
+                "val input = (decoder as? %T ?: throw %T(%S + decoder::class.simpleName + %S))",
                 JSON_DECODER,
                 SERIALIZATION_EXCEPTION,
                 "${serializerType.simpleName} supports JSON only; got ",

@@ -25,7 +25,7 @@ import com.squareup.kotlinpoet.ksp.writeTo
  * Works purely from the model: every decision about *what* the union contains has
  * already been made by [UnionProcessor] and [MemberResolver].
  */
-internal class UnionWriter(private val codeGenerator: CodeGenerator) {
+internal class UnionWriter(private val codeGenerator: CodeGenerator, private val emitJvmNames: Boolean) {
 
     fun write(model: UnionModel, sources: List<KSFile>, annotations: List<AnnotationSpec> = emptyList()) {
         val file = FileSpec.builder(model.unionType)
@@ -33,12 +33,17 @@ internal class UnionWriter(private val codeGenerator: CodeGenerator) {
             // The top-level helpers below compile into a file facade class. By default it
             // would be `ResultKt`, which clashes with the facade of a user file that is
             // also named `Result.kt` in the same package — a natural home for the marker.
-            .addAnnotation(
-                AnnotationSpec.builder(JvmName::class)
-                    .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
-                    .addMember("%S", model.unionType.simpleName + "UnionKt")
-                    .build(),
-            )
+            // Only on the JVM: facade classes exist nowhere else.
+            .apply {
+                if (emitJvmNames) {
+                    addAnnotation(
+                        AnnotationSpec.builder(JvmName::class)
+                            .useSiteTarget(AnnotationSpec.UseSiteTarget.FILE)
+                            .addMember("%S", model.unionType.simpleName + "UnionKt")
+                            .build(),
+                    )
+                }
+            }
             .addType(unionInterface(model, annotations))
 
         constructorFunctions(model).forEach(file::addFunction)
@@ -111,11 +116,15 @@ internal class UnionWriter(private val codeGenerator: CodeGenerator) {
                 .addModifiers(model.visibility)
                 // Mapped types such as List and MutableList erase to the same JVM type, so
                 // every overload gets its own JVM name. Kotlin callers never see it.
-                .addAnnotation(
-                    AnnotationSpec.builder(JvmName::class)
-                        .addMember("%S", model.unionType.simpleName + "Of" + member.simpleName)
-                        .build(),
-                )
+                .apply {
+                    if (emitJvmNames) {
+                        addAnnotation(
+                            AnnotationSpec.builder(JvmName::class)
+                                .addMember("%S", model.unionType.simpleName + "Of" + member.simpleName)
+                                .build(),
+                        )
+                    }
+                }
                 .addParameter(VALUE_NAME, member.typeName)
                 .returns(model.caseSuperType(member))
                 .addStatement("return %T(%N)", model.caseClassName(member), VALUE_NAME)
