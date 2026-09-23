@@ -1,9 +1,14 @@
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.KotlinJvm
+import com.vanniktech.maven.publish.SourcesJar
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    `maven-publish`
+    alias(libs.plugins.maven.publish)
 }
+
+description = "unionKt extension that generates untagged kotlinx.serialization JSON serializers for unions."
 
 kotlin {
     compilerOptions {
@@ -14,7 +19,6 @@ kotlin {
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
-    withSourcesJar()
 }
 
 dependencies {
@@ -24,32 +28,6 @@ dependencies {
     implementation(libs.kotlinpoet.ksp)
 }
 
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-
-            // Never hardcoded: both come from the root build script, which reads
-            // them from JitPack's environment when running there.
-            groupId = project.group.toString()
-            artifactId = project.name
-            version = project.version.toString()
-
-            pom {
-                name.set("unionKt kotlinx.serialization")
-                description.set("unionKt extension that generates untagged kotlinx.serialization JSON serializers for unions.")
-                url.set("https://github.com/fcat97/unionKt")
-                licenses {
-                    license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                }
-                scm {
-                    url.set("https://github.com/fcat97/unionKt")
-                    connection.set("scm:git:https://github.com/fcat97/unionKt.git")
-                }
-            }
-        }
-    }
+mavenPublishing {
+    configure(KotlinJvm(javadocJar = JavadocJar.Empty(), sourcesJar = SourcesJar.Sources()))
 }
