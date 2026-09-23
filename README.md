@@ -46,12 +46,12 @@ plugins {
 }
 
 dependencies {
-    implementation("com.github.fcat97.unionKt:annotations:0.2.0")
-    ksp("com.github.fcat97.unionKt:processor:0.2.0")
+    implementation("com.github.fcat97.unionKt:annotations:0.3.0")
+    ksp("com.github.fcat97.unionKt:processor:0.3.0")
 }
 ```
 
-Replace `0.2.0` with the git tag you want. `annotations` and `processor` are two separate
+Replace `0.3.0` with the git tag you want. `annotations` and `processor` are two separate
 artifacts under the same group — that is how JitPack exposes the modules of a multi-module
 repository (`com.github.<user>.<repo>:<module>:<tag>`).
 
@@ -231,6 +231,77 @@ fun Shape.toItem(): Item   // generated, in Item.kt
 
 ---
 
+## Serialization (kotlinx)
+
+Opt in by adding the extension next to the processor, plus the usual kotlinx.serialization setup:
+
+```kotlin
+plugins {
+    kotlin("plugin.serialization") version "2.4.20"
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")   // 1.6.3 or newer
+    ksp("com.github.fcat97.unionKt:processor:0.3.0")
+    ksp("com.github.fcat97.unionKt:serialization-kotlinx:0.3.0")
+}
+```
+
+Every union in the module then gets `@Serializable(with = ResultSerializer::class)` and a
+generated `ResultSerializer`, so it works at top level and as a property of your own
+`@Serializable` classes, generic unions included:
+
+```kotlin
+Json.encodeToString<Result>(Result(User("Ada")))        // {"name":"Ada"}
+Json.decodeFromString<Result>("5")                       // Result.OnInt(5)
+Json.decodeFromString<Either<String, Int>>("\"oops\"")   // Either.OnL("oops")
+```
+
+**Untagged.** A case is written as its bare inner value — no wrapper, no `"type"` field. JSON only:
+other formats cannot pick a case without a tag.
+
+**How reading picks a case:**
+
+1. Keep the cases whose serializer can produce that JSON shape: strings, chars and enums for a
+   string; numbers for a number; booleans; classes, objects, maps and sealed types for an object;
+   lists and arrays for an array. Nested unions and contextual serializers are always kept. This is
+   why `"5"` decodes to `OnString`, not `OnInt`, in an `Int | String` union.
+2. Try those cases in declaration order; the first that decodes wins.
+3. Nothing decodes: `SerializationException` naming the union and every case tried.
+
+Order matters when two object types overlap. With `ignoreUnknownKeys = true`, `{"name":"Bob","level":3}`
+decodes as whichever of `User(name)` and `Admin(name, level)` is listed first — so **list the more
+specific type first**.
+
+**Compile-time checks.** A member that is not `@Serializable`, an enum or a `kotlin.*` type is a
+compile error, as is a star-projected member such as `List::class`. A type made serializable only
+by a runtime contextual serializer or `@file:UseSerializers` is rejected too, because the processor
+cannot see those — wrap it in a `@Serializable` class.
+
+## Writing an extension
+
+Serialization is built on a public extension API, so other integrations (Moshi, Gson, …) can be
+separate artifacts. Depend on `com.github.fcat97.unionKt:processor-api`, implement
+`UnionExtension`, and register it in
+`META-INF/services/com.github.fcat97.unionkt.api.UnionExtension`:
+
+```kotlin
+class MyExtension : UnionExtension {
+    // Added to the generated union interface. Also the place to validate.
+    override fun unionAnnotations(union: UnionInfo, env: ExtensionEnvironment): List<AnnotationSpec> = emptyList()
+
+    // Extra files, written after the union.
+    override fun generate(union: UnionInfo, env: ExtensionEnvironment) {}
+}
+```
+
+`UnionInfo` is the fully resolved union: its `ClassName`, visibility, type parameters and every
+case (flattened members included) with its type, case class and declaration. Users enable an
+extension by adding its artifact to `ksp(...)`. An extension that throws is reported as a compile
+error naming it.
+
+---
+
 ## Exhaustiveness guarantee
 
 This is the point of the library, and it is verified in-tree rather than claimed.
@@ -278,6 +349,10 @@ inferred when the input is ambiguous.
 | Flattening a generic marker | `@Union on 'ItemSpec' cannot flatten generic union 'EitherSpec' …` |
 | Flattening cycle | `@Union on 'ASpec' has a flattening cycle: ASpec → BSpec → ASpec. …` |
 | Same simple name through flattening | the clash message above, with `… via PeopleSpec` on the flattened member |
+| An extension throws | `unionKt extension 'com.example.MyExtension' failed on 'ResultSpec': <message>` |
+| *(serialization-kotlinx)* Star-projected member | `@Union on 'BadListSpec' cannot serialize member 'List<*>': a class literal cannot say its element type. …` |
+| *(serialization-kotlinx)* Member not serializable | `@Union on 'MoneySpec' cannot serialize member 'test.Money': it is not @Serializable. …` |
+| *(serialization-kotlinx)* kotlinx runtime missing | `serialization-kotlinx is installed, but kotlinx-serialization-core is not on the classpath. …` |
 
 One warning: listing the same type twice directly (`@Union(Int::class, Int::class)`) merges
 the duplicates and reports `@Union on 'DupSpec' lists 'kotlin.Int' more than once; the
@@ -347,6 +422,13 @@ Covered:
 - **Flattening** — single-level, transitive, overlapping, direct duplicates, clash via
   flattening, cycles, generic markers, nesting via the generated type, conversion
   visibility, and a **two-module** compilation that flattens a marker from a dependency.
+- **Extensions** — annotations reach the union, generated files compile, `UnionInfo` carries
+  flattened members and type parameters, and a throwing extension is a named compile error.
+- **Serialization** (`:serialization-kotlinx-tests`) — untagged round trips for primitives,
+  objects, arrays, enums, value classes, generic, flattened and nested unions; `"5"` stays a
+  string; declaration order between object cases; no-match, `null` and non-JSON errors; the
+  compile-time checks. Run against the oldest supported runtime with
+  `./gradlew :serialization-kotlinx-tests:test -PkotlinxSerializationVersion=1.6.3`.
 
 [kotlin-compile-testing]: https://github.com/ZacSweers/kotlin-compile-testing
 
@@ -356,6 +438,9 @@ Covered:
 | ----------------- | --------- | -------- |
 | `:annotations`    | yes    | `@Union(vararg val types: KClass<*>)`, `CLASS` target, `BINARY` retention. Nothing else. |
 | `:processor`      | yes    | `UnionProcessor` + `UnionProcessorProvider`, registered via `META-INF/services`. |
+| `:processor-api`  | yes    | The public extension API: `UnionExtension`, `UnionInfo`. |
+| `:serialization-kotlinx` | yes | Extension generating untagged kotlinx.serialization JSON serializers. |
+| `:serialization-kotlinx-tests` | **no** | Its test suite, run with the real serialization compiler plugin. |
 | `:sample`         | **no** | Exercises the generated code in-tree. Not published, no `maven-publish`. |
 | `:processor-tests`| **no** | The processor's test suite, run through kotlin-compile-testing. |
 

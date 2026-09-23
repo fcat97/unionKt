@@ -18,14 +18,9 @@ java {
 }
 
 dependencies {
-    implementation(project(":annotations"))
+    // No kotlinx.serialization dependency on purpose: this module only *emits* code that
+    // uses it, and the consuming project brings the runtime.
     implementation(project(":processor-api"))
-    implementation(libs.ksp.api)
-
-    // KotlinPoet builds the generated source as a model (imports, nullability and
-    // generics are its problem, not ours). kotlinpoet-ksp adds KSType.toTypeName()
-    // and FileSpec.writeTo(CodeGenerator, Dependencies).
-    implementation(libs.kotlinpoet)
     implementation(libs.kotlinpoet.ksp)
 }
 
@@ -41,8 +36,8 @@ publishing {
             version = project.version.toString()
 
             pom {
-                name.set("unionKt processor")
-                description.set("KSP symbol processor that generates sealed-interface unions from @Union markers.")
+                name.set("unionKt kotlinx.serialization")
+                description.set("unionKt extension that generates untagged kotlinx.serialization JSON serializers for unions.")
                 url.set("https://github.com/fcat97/unionKt")
                 licenses {
                     license {

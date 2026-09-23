@@ -1,8 +1,10 @@
 package com.github.fcat97.unionkt.processor
 
+import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.TypeName
+import com.squareup.kotlinpoet.TypeVariableName
 
 /** One case of a union. */
 internal data class UnionMember(
@@ -16,6 +18,8 @@ internal data class UnionMember(
     val typeParameter: UnionTypeParameter? = null,
     /** The chain of nested markers this member was flattened in through, e.g. `ShapeSpec → PolygonSpec`. */
     val via: String? = null,
+    /** The member's class declaration; null for a type-parameter case. Exposed to extensions. */
+    val declaration: KSClassDeclaration? = null,
 )
 
 /** A type parameter of the marker, and therefore of the union. Always emitted as `out`. */
@@ -42,3 +46,7 @@ internal data class UnionModel(
     val typeParameters: List<UnionTypeParameter> = emptyList(),
     val flattened: List<FlattenedUnion> = emptyList(),
 )
+
+/** As declared on the union and on its case class: always `out`, bounds kept. */
+internal fun UnionTypeParameter.declaredVariable(): TypeVariableName =
+    TypeVariableName(name, bounds, KModifier.OUT)

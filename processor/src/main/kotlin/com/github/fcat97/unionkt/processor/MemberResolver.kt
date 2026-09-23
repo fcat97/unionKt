@@ -237,6 +237,7 @@ internal class MemberResolver(private val logger: KSPLogger) {
             qualifiedName = declaration.qualifiedName?.asString() ?: simpleName,
             typeName = resolved.toTypeName(),
             via = via,
+            declaration = declaration as? KSClassDeclaration,
         )
     }
 }

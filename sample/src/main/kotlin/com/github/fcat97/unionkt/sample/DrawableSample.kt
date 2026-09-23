@@ -1,8 +1,12 @@
 package com.github.fcat97.unionkt.sample
 
 import com.github.fcat97.unionkt.Union
+import kotlinx.serialization.Serializable
 
+@Serializable
 public data class Circle(val radius: Double)
+
+@Serializable
 public data class Square(val side: Double)
 
 @Union(Circle::class, Square::class)

@@ -1,5 +1,8 @@
 package com.github.fcat97.unionkt.sample
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
 public fun main() {
     val values = listOf(
         Result.onInt(5),
@@ -18,4 +21,9 @@ public fun main() {
 
     println(label(Shape(Circle(radius = 1.5)).toDrawable()))
     println(label(Drawable(Square(side = 2.0))))
+
+    println(Json.encodeToString<Result>(Result(User(id = 3, name = "Linus"))))
+    println(Json.decodeFromString<Result>("\"from json\""))
+    println(Json.decodeFromString<Either<String, Int>>("42"))
+    println(Json.decodeFromString<Drawable>("{\"side\":3.0}"))
 }

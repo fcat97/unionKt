@@ -18,15 +18,9 @@ java {
 }
 
 dependencies {
-    implementation(project(":annotations"))
-    implementation(project(":processor-api"))
-    implementation(libs.ksp.api)
-
-    // KotlinPoet builds the generated source as a model (imports, nullability and
-    // generics are its problem, not ours). kotlinpoet-ksp adds KSType.toTypeName()
-    // and FileSpec.writeTo(CodeGenerator, Dependencies).
-    implementation(libs.kotlinpoet)
-    implementation(libs.kotlinpoet.ksp)
+    // Both appear in the public signatures, so extensions get them transitively.
+    api(libs.ksp.api)
+    api(libs.kotlinpoet)
 }
 
 publishing {
@@ -41,8 +35,8 @@ publishing {
             version = project.version.toString()
 
             pom {
-                name.set("unionKt processor")
-                description.set("KSP symbol processor that generates sealed-interface unions from @Union markers.")
+                name.set("unionKt processor API")
+                description.set("Extension API for the unionKt KSP processor.")
                 url.set("https://github.com/fcat97/unionKt")
                 licenses {
                     license {
