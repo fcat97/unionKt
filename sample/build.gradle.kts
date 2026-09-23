@@ -5,6 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
@@ -20,5 +21,8 @@ java {
 
 dependencies {
     implementation(project(":annotations"))
+    implementation(libs.kotlinx.serialization.json)
     ksp(project(":processor"))
+    // Opt-in serialization: every union in this module gets an untagged JSON serializer.
+    ksp(project(":serialization-kotlinx"))
 }
