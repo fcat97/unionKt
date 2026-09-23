@@ -21,3 +21,23 @@ internal fun unionNameOf(markerName: String): String? =
     } else {
         null
     }
+
+/**
+ * The stem of a case's `<stem>OrNull` accessor: the simple name decapitalised Kotlin
+ * style. A leading run of capitals is lowercased, except for its last letter when that
+ * letter starts the next word: `Int → int`, `DoubleArray → doubleArray`, `URL → url`,
+ * `URLParser → urlParser`, `L → l`.
+ */
+internal fun accessorStem(simpleName: String): String {
+    val capitals = simpleName.takeWhile(Char::isUpperCase).length
+    if (capitals == 0) return simpleName
+    val startsNextWord = capitals > 1 && capitals < simpleName.length && simpleName[capitals].isLowerCase()
+    val lowered = if (startsNextWord) capitals - 1 else capitals
+    return simpleName.take(lowered).lowercase() + simpleName.drop(lowered)
+}
+
+/** The first of `T`, `T1`, `T2`, … that is not in [taken]. */
+internal fun freeTypeVariableName(taken: Set<String>): String =
+    generateSequence(0) { it + 1 }
+        .map { if (it == 0) "T" else "T$it" }
+        .first { it !in taken }
