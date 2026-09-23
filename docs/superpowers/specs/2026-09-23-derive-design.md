@@ -104,9 +104,10 @@ A helper cannot be more visible than any declaration it mentions:
 - `fold`: the strictest of the sealed type's visibility and every case's visibility.
 - A case's `isX` / `xOrNull`: the stricter of the sealed type's visibility and that case's.
 
-`public` stays `public`; `internal` stays `internal`; a `private` **sealed type** yields
-`internal` helpers with a warning (the same rule and message shape as a `private` union marker;
-see §4). A `private` **case** is an error (§5).
+`public` stays `public` and `internal` stays `internal`. A sealed type or case that is not visible
+to other files — `private` or `protected`, itself or through a containing class — is an error
+(§5): unlike a union marker, which the generated union never mentions, the helpers *reference* the
+sealed type and its cases, so they cannot live in a separate file.
 
 Visibility is the effective one: a class nested in an `internal` class is treated as `internal`.
 
@@ -154,8 +155,15 @@ the case's type in terms of the sealed type's parameters:
 | `Pair<A, B> : Result<A>` | `Pair<T, *>` |
 | `Many<A> : Result<List<A>>` | `Many<*>` |
 
-Case checks in generated code are bare `is Result.Ok`, with type arguments inferred from the
-subject — the pattern the union helpers already use — so no unchecked casts are emitted.
+Case checks in generated code:
+
+- Every case type argument mapped (`Ok<T>`), or no type parameters: a bare `is Result.Ok`, whose
+  type arguments Kotlin infers from the subject — the pattern the union helpers already use.
+- Every argument `*` (`Many<*>`): `is Box.Many<*>`; the smart-cast type is the case type.
+- Mixed (`Tagged<T, *>`): Kotlin cannot infer the `*` part, so the check is `is Box.Tagged<*, *>`
+  and the value is cast to `Box.Tagged<T, *>`. The cast is sound — the case's supertype
+  declaration fixes how its parameters relate to the sealed type's — and the unchecked-cast
+  warning is suppressed on exactly the helpers that contain one.
 
 ### 3.2 Bounds
 
@@ -172,12 +180,7 @@ In `:processor`; no new modules.
 | `DeriveProcessorProvider.kt` | Its provider, registered in the existing `META-INF/services/…SymbolProcessorProvider` file next to `UnionProcessorProvider`. It opts in to KSP's new features the same way (reflectively). |
 | `DeriveModel.kt` | Plain data passed to the writer. |
 | `DeriveWriter.kt` | Emits `<SimpleName>Derived.kt`. |
-| `Visibilities.kt` | Shared: the marker/sealed-type visibility rule (public → public, internal → internal, private → internal + warning, other → error), moved out of `UnionProcessor`, plus "strictest of" for `KModifier`s. |
 | `Naming.kt` | Shared, unchanged: `accessorStem`, `freeTypeVariableName` (gains a `base` parameter so `fold` can ask for `R`, `R1`, …). |
-
-The warning for a `private` sealed type reads:
-`@Derive target 'X' is private; the generated helpers are emitted as 'internal' because a private
-top-level declaration in the generated file would be invisible to '<file>'.`
 
 **Incremental processing:** the output depends on the sealed type's file and every case's file,
 and is written with `Dependencies(aggregating = true, …)`, so KSP re-runs it when a new file
@@ -191,8 +194,10 @@ The test harness registers both providers.
 | --- | --- |
 | Target is not a sealed class or interface | `@Derive may only be applied to a sealed class or interface, but 'X' is …` |
 | Target in the default package | `@Derive target 'X' must live in a named package …` |
+| Target not visible to other files | `@Derive target 'X' is not visible to other files (it, or a class containing it, is private or protected). Make it internal or public.` |
+| Two targets generating the same file (`Outer.State` and `OuterState`) | `@Derive on 'State' would generate 'pkg.OuterStateDerived.kt', which another @Derive target already generates. Rename one of them.` |
 | No subclasses | `@Derive on 'X' found no subclasses. A sealed type needs at least one to derive helpers for.` |
-| A `private` case | `@Derive on 'X' cannot reference private subclass 'X.Y'; the generated file cannot see it. Make it internal or public.` |
+| A case not visible to other files | `@Derive on 'X' cannot reference subclass 'pkg.X.Y': it, or a class containing it, is private or protected, so the generated file cannot see it. Make it internal or public.` |
 | Two cases with the same simple name | `@Derive on 'X' has 2 subclasses whose simple name is 'Item' (…), which would generate clashing 'onItem' handlers. Rename one of them.` |
 
 ## 6. Testing
@@ -202,10 +207,11 @@ In `:processor-tests`, compiling and running consumer code:
 - **Basics:** `fold` over object, class and nested sealed-group cases; `isX` / `xOrNull`; no
   `xOrNull` for objects; a case declared in another file; accessor casing; the file name and
   `@file:JvmName`; a sealed *class* as well as a sealed interface; a nested sealed target.
-- **Visibility:** an `internal` case makes `fold` and that case's accessors `internal`;
-  a `private` sealed type yields `internal` helpers and the warning; an `internal` sealed type.
+- **Visibility:** an `internal` case makes `fold` and that case's accessors `internal`; an
+  `internal` sealed type; a sealed type nested in an `internal` class.
 - **Generics:** `Result<out T>` with `Ok`, `Err : Result<Nothing>` and an object case; a case with
-  a free extra parameter (`*`); a wrapped parameter (`*`); bounds; `R` renamed to `R1`.
+  a free extra parameter (`Tagged<T, *>`, checked with `<*, *>` and cast); a wrapped parameter
+  (`Many<*>`); bounds; `R` renamed to `R1`.
 - **Errors:** every row of §5.
 - The existing suites stay green.
 
