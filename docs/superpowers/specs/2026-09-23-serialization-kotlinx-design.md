@@ -134,8 +134,10 @@ The union gains `@Serializable(with = <Union>Serializer::class)`. A new file
 Case serializers: a concrete member uses `serializer<T>()`; a type-parameter member uses the
 matching constructor parameter.
 
-Descriptor: `SerialDescriptor("<qualified union name>", JsonElement.serializer().descriptor)`,
-with `@OptIn(ExperimentalSerializationApi::class)`.
+Descriptor: `SerialDescriptor("<qualified union name>", ContextualSerializer(Any::class).descriptor)`,
+with `@OptIn(ExperimentalSerializationApi::class)`. Its kind is `CONTEXTUAL`, so an outer union's
+shape filter (§3.3) always tries a union nested as a case; `JsonElement`'s descriptor (kind
+`SEALED`, used in the spike) would restrict a nested union to JSON objects.
 
 Verified by spike on 2026-09-23 (kotlinx-serialization-json 1.11.0, compiler plugin 2.4.20): a
 KSP-generated generic sealed interface annotated this way works as a property of a
