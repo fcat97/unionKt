@@ -28,7 +28,7 @@ public class UnionProcessorProvider : SymbolProcessorProvider {
  * either way, since it implements no `KSVisitor` and only reads a marker interface's
  * name, visibility and `@Union` arguments.
  */
-private fun SymbolProcessorEnvironment.registerForNewFeaturesIfSupported(processor: SymbolProcessor) {
+internal fun SymbolProcessorEnvironment.registerForNewFeaturesIfSupported(processor: SymbolProcessor) {
     val register = try {
         SymbolProcessorEnvironment::class.java.getMethod("getRegisterProcessorForNewFeatures")
     } catch (_: NoSuchMethodException) {

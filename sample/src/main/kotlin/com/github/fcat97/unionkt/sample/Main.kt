@@ -26,4 +26,8 @@ public fun main() {
     println(Json.decodeFromString<Result>("\"from json\""))
     println(Json.decodeFromString<Either<String, Int>>("42"))
     println(Json.decodeFromString<Drawable>("{\"side\":3.0}"))
+
+    listOf(UiState.Loading, UiState.Loaded(User(id = 4, name = "Ada")), UiState.Failed.Server(503))
+        .forEach { println(render(it)) }
+    println(UiState.Loaded(User(id = 5, name = "Grace")).loadedOrNull?.user?.name)
 }

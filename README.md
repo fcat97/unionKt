@@ -46,12 +46,12 @@ plugins {
 }
 
 dependencies {
-    implementation("com.github.fcat97.unionKt:annotations:0.3.0")
-    ksp("com.github.fcat97.unionKt:processor:0.3.0")
+    implementation("com.github.fcat97.unionKt:annotations:0.4.0")
+    ksp("com.github.fcat97.unionKt:processor:0.4.0")
 }
 ```
 
-Replace `0.3.0` with the git tag you want. `annotations` and `processor` are two separate
+Replace `0.4.0` with the git tag you want. `annotations` and `processor` are two separate
 artifacts under the same group — that is how JitPack exposes the modules of a multi-module
 repository (`com.github.<user>.<repo>:<module>:<tag>`).
 
@@ -231,6 +231,50 @@ fun Shape.toItem(): Item   // generated, in Item.kt
 
 ---
 
+## `@Derive` for your own sealed types
+
+Already have a sealed class? Annotate it — no `Spec` marker needed:
+
+```kotlin
+@Derive
+sealed interface UiState {
+    data object Loading : UiState
+    data class Success(val items: List<Item>) : UiState
+    sealed interface Error : UiState {
+        data object Offline : Error
+        data class Server(val code: Int) : Error
+    }
+}
+```
+
+generates `UiStateDerived.kt`:
+
+```kotlin
+inline fun <R> UiState.fold(
+    onLoading: () -> R,                     // object: no argument
+    onSuccess: (UiState.Success) -> R,      // the instance itself, no wrapper
+    onError: (UiState.Error) -> R,          // a nested sealed group is one case
+): R
+
+val UiState.isLoading: Boolean
+val UiState.isSuccess: Boolean
+val UiState.successOrNull: UiState.Success?
+val UiState.isError: Boolean
+val UiState.errorOrNull: UiState.Error?
+```
+
+- **Direct children only.** `fold` asks for one handler per direct subclass, like an exhaustive
+  `when`. Put `@Derive` on `Error` too and it gets its own
+  `fold(onOffline = …, onServer = …)` to call from `onError`.
+- **Objects** get a no-argument handler and `isX` only.
+- **Generic sealed types** work: for `sealed interface Result<out T>` with
+  `data class Ok<out T>(val value: T) : Result<T>`, the helpers are
+  `fun <T, R> Result<T>.fold(onOk: (Result.Ok<T>) -> R, …)`. A case whose type parameters cannot
+  be expressed through `T` gets `*` (`Tagged<T, *>`).
+- **Visibility:** no helper is more visible than what it mentions — one `internal` subclass makes
+  `fold` `internal`. A `private` sealed type or subclass is a compile error, since the generated
+  file could not see it.
+
 ## Serialization (kotlinx)
 
 Opt in by adding the extension next to the processor, plus the usual kotlinx.serialization setup:
@@ -242,8 +286,8 @@ plugins {
 
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")   // 1.6.3 or newer
-    ksp("com.github.fcat97.unionKt:processor:0.3.0")
-    ksp("com.github.fcat97.unionKt:serialization-kotlinx:0.3.0")
+    ksp("com.github.fcat97.unionKt:processor:0.4.0")
+    ksp("com.github.fcat97.unionKt:serialization-kotlinx:0.4.0")
 }
 ```
 
@@ -353,6 +397,12 @@ inferred when the input is ambiguous.
 | *(serialization-kotlinx)* Star-projected member | `@Union on 'BadListSpec' cannot serialize member 'List<*>': a class literal cannot say its element type. …` |
 | *(serialization-kotlinx)* Member not serializable | `@Union on 'MoneySpec' cannot serialize member 'test.Money': it is not @Serializable. …` |
 | *(serialization-kotlinx)* kotlinx runtime missing | `serialization-kotlinx is installed, but kotlinx-serialization-core is not on the classpath. …` |
+| *(@Derive)* Not a sealed class or interface | `@Derive may only be applied to a sealed class or interface, but 'Plain' is a class that is not sealed.` |
+| *(@Derive)* Target not visible to other files | `@Derive target 'Hidden' is not visible to other files (it, or a class containing it, is private or protected). …` |
+| *(@Derive)* No subclasses | `@Derive on 'Empty' found no subclasses. …` |
+| *(@Derive)* Subclass not visible to other files | `@Derive on 'S' cannot reference subclass 'test.S.Hidden': … Make it internal or public.` |
+| *(@Derive)* Subclasses sharing a simple name | `@Derive on 'S' has 2 subclasses whose simple name is 'Item' (…), which would generate clashing 'onItem' handlers. …` |
+| *(@Derive)* Two targets generating one file | `@Derive on 'State' would generate 'test.OuterStateDerived.kt', which another @Derive target already generates. …` |
 
 One warning: listing the same type twice directly (`@Union(Int::class, Int::class)`) merges
 the duplicates and reports `@Union on 'DupSpec' lists 'kotlin.Int' more than once; the
@@ -429,6 +479,9 @@ Covered:
   string; declaration order between object cases; no-match, `null` and non-JSON errors; the
   compile-time checks. Run against the oldest supported runtime with
   `./gradlew :serialization-kotlinx-tests:test -PkotlinxSerializationVersion=1.6.3`.
+- **@Derive** — `fold` over object, class and nested-sealed cases, accessors, cases in other files,
+  sealed classes and nested targets, visibility, generic sealed types (mapped, star-projected,
+  bounded, `R` renamed) and every error.
 
 [kotlin-compile-testing]: https://github.com/ZacSweers/kotlin-compile-testing
 
