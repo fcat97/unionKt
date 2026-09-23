@@ -46,12 +46,12 @@ plugins {
 }
 
 dependencies {
-    implementation("com.github.fcat97.unionKt:annotations:0.1.0")
-    ksp("com.github.fcat97.unionKt:processor:0.1.0")
+    implementation("com.github.fcat97.unionKt:annotations:0.2.0")
+    ksp("com.github.fcat97.unionKt:processor:0.2.0")
 }
 ```
 
-Replace `0.1.0` with the git tag you want. `annotations` and `processor` are two separate
+Replace `0.2.0` with the git tag you want. `annotations` and `processor` are two separate
 artifacts under the same group — that is how JitPack exposes the modules of a multi-module
 repository (`com.github.<user>.<repo>:<module>:<tag>`).
 
