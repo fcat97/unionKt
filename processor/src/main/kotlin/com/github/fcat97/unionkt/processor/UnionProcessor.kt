@@ -8,10 +8,19 @@ import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.Variance
 import com.google.devtools.ksp.symbol.Visibility
 import com.google.devtools.ksp.validate
 import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.ANY
 import com.squareup.kotlinpoet.KModifier
+import com.squareup.kotlinpoet.LambdaTypeName
+import com.squareup.kotlinpoet.ParameterizedTypeName
+import com.squareup.kotlinpoet.TypeName
+import com.squareup.kotlinpoet.TypeVariableName
+import com.squareup.kotlinpoet.WildcardTypeName
+import com.squareup.kotlinpoet.ksp.toTypeParameterResolver
+import com.squareup.kotlinpoet.ksp.toTypeVariableName
 
 /**
  * Generates a sealed-interface union for every `@Union`-annotated Spec marker.
@@ -68,15 +77,6 @@ internal class UnionProcessor(
             return
         }
 
-        if (marker.typeParameters.isNotEmpty()) {
-            logger.error(
-                "@Union marker '$markerName' declares type parameters, which the generated " +
-                    "union cannot carry. Remove them.",
-                marker,
-            )
-            return
-        }
-
         val unionName = unionNameOf(markerName) ?: run {
             logger.error(
                 "@Union marker '$markerName' must be named '<Union>$SPEC_SUFFIX' — KSP cannot " +
@@ -107,7 +107,8 @@ internal class UnionProcessor(
             return
         }
 
-        val members = memberResolver.resolve(marker, markerName) ?: return
+        val typeParameters = resolveTypeParameters(marker, markerName) ?: return
+        val members = memberResolver.resolve(marker, markerName, typeParameters) ?: return
 
         // Computed last so the private -> internal warning is only emitted for a marker
         // that actually produces a union.
@@ -119,9 +120,69 @@ internal class UnionProcessor(
                 unionType = ClassName(packageName, unionName),
                 visibility = visibility,
                 members = members,
+                typeParameters = typeParameters,
             ),
             sources = listOfNotNull(marker.containingFile),
         )
+    }
+
+    /**
+     * The marker's type parameters, which become both the union's type parameters and
+     * cases. Null after reporting every problem.
+     */
+    private fun resolveTypeParameters(
+        marker: KSClassDeclaration,
+        markerName: String,
+    ): List<UnionTypeParameter>? {
+        val resolver = marker.typeParameters.toTypeParameterResolver()
+        val names = marker.typeParameters.map { it.name.asString() }.toSet()
+        var valid = true
+
+        val parameters = marker.typeParameters.map { parameter ->
+            val name = parameter.name.asString()
+
+            if (parameter.variance == Variance.CONTRAVARIANT) {
+                logger.error(
+                    "@Union marker '$markerName' type parameter '$name' is declared 'in', but a " +
+                        "union case stores a $name, which only an 'out' or invariant parameter " +
+                        "allows. Remove 'in'.",
+                    marker,
+                )
+                valid = false
+            }
+
+            val bounds = parameter.toTypeVariableName(resolver).bounds.filter { it != NULLABLE_ANY }
+            val foreign = bounds.flatMap { it.referencedTypeVariables() }.filter { it != name && it in names }.distinct()
+            if (foreign.isNotEmpty()) {
+                logger.error(
+                    "@Union marker '$markerName' type parameter '$name' has a bound that refers to " +
+                        "${foreign.joinToString { "'$it'" }}. Each case class declares only its own " +
+                        "type parameter, so such a bound cannot be expressed. Remove the reference.",
+                    marker,
+                )
+                valid = false
+            }
+
+            UnionTypeParameter(name = name, bounds = bounds)
+        }
+
+        return parameters.takeIf { valid }
+    }
+
+    /** Names of every type variable mentioned anywhere inside this type. */
+    private fun TypeName.referencedTypeVariables(): Set<String> = when (this) {
+        // Deliberately not recursing into a variable's own bounds: `T : Comparable<T>` would loop.
+        is TypeVariableName -> setOf(name)
+        is ParameterizedTypeName -> typeArguments.flatMapTo(mutableSetOf()) { it.referencedTypeVariables() }
+        is WildcardTypeName -> (inTypes + outTypes).flatMapTo(mutableSetOf()) { it.referencedTypeVariables() }
+        is LambdaTypeName ->
+            (listOfNotNull(receiver) + parameters.map { it.type } + returnType)
+                .flatMapTo(mutableSetOf()) { it.referencedTypeVariables() }
+        else -> emptySet()
+    }
+
+    private companion object {
+        val NULLABLE_ANY: TypeName = ANY.copy(nullable = true)
     }
 
     /**

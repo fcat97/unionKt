@@ -102,26 +102,6 @@ class UnionProcessorErrorTest {
     }
 
     @Test
-    fun `marker with type parameters is rejected`() {
-        compileWithUnionProcessor(
-            SourceFile.kotlin(
-                "Generic.kt",
-                """
-                package test
-
-                import com.github.fcat97.unionkt.Union
-
-                @Union(Int::class)
-                interface GenericSpec<T>
-                """.trimIndent(),
-            ),
-        ).assertFailedWith(
-            "@Union marker 'GenericSpec' declares type parameters",
-            "which the generated union cannot carry",
-        )
-    }
-
-    @Test
     fun `union with no member types is rejected`() {
         compileWithUnionProcessor(
             SourceFile.kotlin(

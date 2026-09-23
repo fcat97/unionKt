@@ -90,4 +90,11 @@ internal class UnionCompilationResult(
     }
 
     fun generatedFileNames(): List<String> = generatedFiles.map { it.name }.sorted()
+
+    /**
+     * Runs a top-level, no-argument function from the compiled sources and returns its
+     * result, e.g. `call("test.UseKt", "verify")`. A failing `check` inside it fails the test.
+     */
+    fun call(className: String, functionName: String): Any? =
+        result.classLoader.loadClass(className).getMethod(functionName).invoke(null)
 }

@@ -4,13 +4,21 @@ import com.google.devtools.ksp.processing.KSPLogger
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
+import com.squareup.kotlinpoet.TypeVariableName
 import com.squareup.kotlinpoet.ksp.toTypeName
 
 /** Works out the cases of a union from its marker's `@Union` arguments. */
 internal class MemberResolver(private val logger: KSPLogger) {
 
-    /** The marker's members in declaration order, or null after reporting why there are none. */
-    fun resolve(marker: KSClassDeclaration, markerName: String): List<UnionMember>? {
+    /**
+     * The union's cases: the annotation's types in order, then the marker's type
+     * parameters in declaration order. Null after reporting why there are none.
+     */
+    fun resolve(
+        marker: KSClassDeclaration,
+        markerName: String,
+        typeParameters: List<UnionTypeParameter>,
+    ): List<UnionMember>? {
         val annotation = marker.unionAnnotation() ?: run {
             logger.error("Unable to read the @Union annotation on '$markerName'.", marker)
             return null
@@ -22,7 +30,7 @@ internal class MemberResolver(private val logger: KSPLogger) {
             )
             return null
         }
-        if (declaredTypes.isEmpty()) {
+        if (declaredTypes.isEmpty() && typeParameters.isEmpty()) {
             logger.error(
                 "@Union on '$markerName' declares no member types. A union needs at least one.",
                 marker,
@@ -30,7 +38,16 @@ internal class MemberResolver(private val logger: KSPLogger) {
             return null
         }
 
-        val members = declaredTypes.map { type -> resolveMember(type, markerName, marker) ?: return null }
+        val concrete = declaredTypes.map { type -> resolveMember(type, markerName, marker) ?: return null }
+        val generic = typeParameters.map { parameter ->
+            UnionMember(
+                simpleName = parameter.name,
+                qualifiedName = parameter.name,
+                typeName = TypeVariableName(parameter.name),
+                typeParameter = parameter,
+            )
+        }
+        val members = concrete + generic
         if (!reportCollisions(members, markerName, marker)) return null
         return members
     }
